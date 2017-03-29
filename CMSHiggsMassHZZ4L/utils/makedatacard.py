@@ -2,7 +2,7 @@ class Makedatacard():
 
       def __init__(self, config):
 
-          self.self.txtfile = config["txtfile"]
+          self.txtfile = config["txtfile"]
           self.nChannel = config["nChannel"]  
           self.nSig = config["nSig"]
           self.nBkg = config["nBkg"]
