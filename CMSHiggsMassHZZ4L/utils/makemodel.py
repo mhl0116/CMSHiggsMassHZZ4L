@@ -1,10 +1,16 @@
 import ROOT
 
+
+next steps:
+2, add yields function
+3, assemble pieces
+4, need function to read shape/yield/uncertainties ...
+
 class MakeModel():
 
       def __init__(self, config):
 
-          self.MH = ROOT.RooRealVar("MH","MH", 125) 
+          self.MH = ROOT.RooRealVar("MH","MH", config["MH"]) 
           self.MH.setConstant(True)
 
           ### redesign so that take only input: vars, shapes, paras, report model one at a time ###
@@ -15,7 +21,7 @@ class MakeModel():
           self.CMS_zz4l_massErr = self.w_in.var("CMS_zz4l_massErr")
           self.MELA_KD = self.w_in.var("MELA_KD")
 
-          self.signalCB = ROOT.RooDoubleCB()
+#          self.signalCB = ROOT.RooDoubleCB()
 
           self.w_out = ROOT.RooWorkspace()
 
@@ -28,49 +34,13 @@ class MakeModel():
           else:
              return falseVar
 
-      #make below two as python template
-      def GetScaleUnc(self):
-
-          CMS_zz4l_mean_m_sig = ROOT.RooRealVar("CMS_zz4l_mean_m_sig", "", 0,-0.99,0.99)
-          CMS_zz4l_mean_e_sig = ROOT.RooRealVar("CMS_zz4l_mean_e_sig", "", 0,-0.99,0.99)
-
-          if self.channel == "1": 
-             rv_scaleUnc = CMS_zz4l_mean_m_sig
-             return rv_scaleUnc
-
-          if self.channel == "2": 
-             rv_scaleUnc = CMS_zz4l_mean_e_sig
-             return rv_scaleUnc
-
-          if self.channel == "3": 
-             rv_scaleUnc = ROOT.RooFormulaVar("CMS_zz4l_mean_m_e_sig", "", "(@0+@1)/2", \
-                                               ROOT.RooArgList(CMS_zz4l_mean_m_sig, CMS_zz4l_mean_e_sig) )
-             return rv_scaleUnc
-
-      def GetResolutionUnc(self):        
-
-          CMS_zz4l_sigma_m_sig = ROOT.RooRealVar("CMS_zz4l_sigma_m_sig", "", 0,-0.99,0.99)
-          CMS_zz4l_sigma_e_sig = ROOT.RooRealVar("CMS_zz4l_sigma_e_sig", "", 0,-0.99,0.99)
-
-          if self.channel == "1": 
-             rv_resolutionUnc = CMS_zz4l_sigma_m_sig
-             return rv_resolutionUnc
-
-          if self.channel == "2":
-             rv_resolutionUnc = CMS_zz4l_sigma_e_sig
-             return rv_resolutionUnc
-
-          if self.channel == "3":
-             rv_resolutionUnc = ROOT.RooFormulaVar("CMS_zz4l_sigma_m_e_sig", "", "TMath::Sqrt((1+@0)*(1+@1))", \
-                                                    ROOT.RooArgList(CMS_zz4l_sigma_m_sig, CMS_zz4l_sigma_e_sig) )
-             return rv_resolutionUnc
-
 
       def MakeDoubleCB(self, name, doubleCBShape, includeErr):
 
           #set up shape uncertainties
           CMS_zz4l_mean_sig = self.GetScaleUnc()
           CMS_zz4l_sigma_sig = self.GetResolutionUnc()
+
 
           #name = "CMS_zz4l_alpha2_{0}".format(self.channel)
           #CMS_zz4l_alpha2 = ROOT.RooRealVar(name,"CMS_zz4l_alpha2",0.0,-0.99,0.99)
@@ -100,28 +70,150 @@ class MakeModel():
           rfv_sigma_CB = ROOT.RooFormulaVar("sigma_"+self.channel,"(" + doubleCBShape["sigma"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_sigma_sig))
           rfv_MassErr = ROOT.RooFormulaVar("rfv_MassErr_"+self.channel,"@1*@0*(1+@2)",ROOT.RooArgList(self.MassErr, self.MH, CMS_zz4l_sigma_sig))
 
-          self.signalCB = ROOT.RooDoubleCB(name, name, self.CMS_zz4l_mass, \
+          signalCB = ROOT.RooDoubleCB(name, name, self.CMS_zz4l_mass, \
                                       rfv_mean_CB, self.getVariable(rfv_MassErr, rfv_sigma_CB, includeErr), \
                                       rfv_alpha_CB, rfv_n_CB, rfv_alpha2_CB, rfv_n2_CB)
 
-          #return signalCB
+          return signalCB
 
+
+      #might not need these two
+      def MakeBernstein(self, name, bernsteinShape):
+
+          bernsteinShape = ROOT.RooBernstein(name, name, self.CMS_zz4l_mass, \
+                                             RooArgList(bernsteinShape["b0"], bernsteinShape["b1"], bernsteinShape["b2"]) )
+
+          return bernsteinShape
+
+
+      def MakeLandau(self, name, landauShape):
+
+          landauShape = ROOT.RooLandau(name, name, self.CMS_zz4l_mass, RooArgList(landauShape["mean"], landauShape["sigma"]) )
+
+          return landauShape
+
+
+      #might not need this one
+      def MakeConditionalProd(self, name, model1, model2, conditionlVar):
+
+          conditionalProd = ROOT.RooProdPdf(name, name, RooArgSet(model1), ROOT.RooFit.Conditional(ROOT.RooArgSet(model2), ROOT.RooArgSet(conditionalVar) ) )
+          #modelEBE = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(errPdf), ROOT.RooFit.Conditional(ROOT.RooArgSet(model), ROOT.RooArgSet(self.CMS_zz4l_mass) ) )
+          #modelEBE_KD = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(model), ROOT.RooFit.Conditional(ROOT.RooArgSet(KDPdf),ROOT.RooArgSet(self.MELA_KD) ) )
+
+          return conditionalProd
 
 
       #make below two as python template
-      def MakeModel_EBE(self, name, model, errPdf): #m4l + per-event mass uncertainty
+      def GetScaleUnc(self):
 
-          modelEBE = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(errPdf), ROOT.RooFit.Conditional(ROOT.RooArgSet(model), ROOT.RooArgSet(self.CMS_zz4l_mass) ) )
+          CMS_zz4l_mean_m_sig = ROOT.RooRealVar("CMS_zz4l_mean_m_sig", "", 0,-0.99,0.99)
+          CMS_zz4l_mean_e_sig = ROOT.RooRealVar("CMS_zz4l_mean_e_sig", "", 0,-0.99,0.99)
+
+          if self.channel == "1":
+             rv_scaleUnc = CMS_zz4l_mean_m_sig
+             return rv_scaleUnc
+
+          if self.channel == "2":
+             rv_scaleUnc = CMS_zz4l_mean_e_sig
+             return rv_scaleUnc
+
+          if self.channel == "3":
+             rv_scaleUnc = ROOT.RooFormulaVar("CMS_zz4l_mean_m_e_sig", "", "(@0+@1)/2", \
+                                               ROOT.RooArgList(CMS_zz4l_mean_m_sig, CMS_zz4l_mean_e_sig) )
+             return rv_scaleUnc
+
+      def GetResolutionUnc(self):
+
+          CMS_zz4l_sigma_m_sig = ROOT.RooRealVar("CMS_zz4l_sigma_m_sig", "", 0,-0.99,0.99)
+          CMS_zz4l_sigma_e_sig = ROOT.RooRealVar("CMS_zz4l_sigma_e_sig", "", 0,-0.99,0.99)
+
+          if self.channel == "1":
+             rv_resolutionUnc = CMS_zz4l_sigma_m_sig
+             return rv_resolutionUnc
+
+          if self.channel == "2":
+             rv_resolutionUnc = CMS_zz4l_sigma_e_sig
+             return rv_resolutionUnc
+
+          if self.channel == "3":
+             rv_resolutionUnc = ROOT.RooFormulaVar("CMS_zz4l_sigma_m_e_sig", "", "TMath::Sqrt((1+@0)*(1+@1))", \
+                                                    ROOT.RooArgList(CMS_zz4l_sigma_m_sig, CMS_zz4l_sigma_e_sig) )
+             return rv_resolutionUnc
 
 
-      def MakeModel_KD(self, name, model, KDPdf): #m4l + per-event mass uncertainty + ME kinematic discriminant
+      def GetZXShape_4mu_reco(self):
 
-          modelEBE_KD = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(model, ROOT.RooFit.Conditional(ROOT.RooArgSet(KDPdf),ROOT.RooArgSet(self.MELA_KD) ) )
+          p0_zjets_4mu = ROOT.RooRealVar("p0_zjets_4mu","p0_zjets_4mu",130.4)
+          p1_zjets_4mu = ROOT.RooRealVar("p1_zjets_4mu","p1_zjets_4mu",15.6)
+          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4mu","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
+
+          return bkg_zjets
 
 
+      def GetZXShape_4e_reco(self):
+
+          p0_zjets_4e = ROOT.RooRealVar("p0_zjets_4e","p0_zjets_4e",141.9)
+          p1_zjets_4e = ROOT.RooRealVar("p1_zjets_4e","p1_zjets_4e",21.3)
+          p2_zjets_4e = ROOT.RooRealVar("p2_zjets_4e","p2_zjets_4e",7.06)
+          p3_zjets_4e = ROOT.RooRealVar("p3_zjets_4e","p3_zjets_4e",-0.00497)
+          landau_zjets_4e = ROOT.RooFormulaVar("landau_zjets_4e","TMath::Landau(@0,@1,@2)",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_4e,p1_zjets_4e))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4e","landau_zjets_4e*(1+TMath::Exp(p2_zjets_4e+p3_zjets_4e*@3))", ROOT.RooArgList(landau_zjets_4e, p2_zjets_4e, p3_zjets_4e,self.CMS_zz4l_mass) )
+
+          return bkg_zjets
 
 
+      def GetZXShape_2e2mu_reco(self):
 
+          p0_zjets_2e2mu = ROOT.RooRealVar("p0_zjets_2e2mu","p0_zjets_2e2mu",131.1)
+          p1_zjets_2e2mu = ROOT.RooRealVar("p1_zjets_2e2mu","p1_zjets_2e2mu",18.1)
+          p2_zjets_2e2mu = ROOT.RooRealVar("p2_zjets_2e2mu","p2_zjets_2e2mu",0.45)
+
+          p3_zjets_2e2mu = ROOT.RooRealVar("p3_zjets_2e2mu","p3_zjets_2e2mu",133.8)
+          p4_zjets_2e2mu = ROOT.RooRealVar("p4_zjets_2e2mu","p4_zjets_2e2mu",18.9)
+          p5_zjets_2e2mu = ROOT.RooRealVar("p5_zjets_2e2mu","p5_zjets_2e2mu",0.55)
+
+          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP2e2mu","landau_zjets_2e2mu", ROOT.RooArgList(landau_zjets_2e2mu))
+
+          return bkg_zjets
+
+
+      def GetZXShape_4mu_refit(self):
+
+          p0_zjets_4mu = ROOT.RooRealVar("p0_zjets_4mu","p0_zjets_4mu",134.1)
+          p1_zjets_4mu = ROOT.RooRealVar("p1_zjets_4mu","p1_zjets_4mu",21.01)
+          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4mu","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
+
+          return bkg_zjets
+
+
+      def GetZXShape_4e_refit(self):
+
+          p0_zjets_4e = ROOT.RooRealVar("p0_zjets_4e","p0_zjets_4e",141.9)
+          p1_zjets_4e = ROOT.RooRealVar("p1_zjets_4e","p1_zjets_4e",21.3)
+          p2_zjets_4e = ROOT.RooRealVar("p2_zjets_4e","p2_zjets_4e",7.06)
+          p3_zjets_4e = ROOT.RooRealVar("p3_zjets_4e","p3_zjets_4e",-0.00497)
+          landau_zjets_4e = ROOT.RooFormulaVar("landau_zjets_4e","TMath::Landau(@0,@1,@2)",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_4e,p1_zjets_4e))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4e","landau_zjets_4e*(1+TMath::Exp(p2_zjets_4e+p3_zjets_4e*@3))", ROOT.RooArgList(landau_zjets_4e, p2_zjets_4e, p3_zjets_4e,self.CMS_zz4l_mass) )
+
+          return bkg_zjets
+
+      def GetZXShape_2e2mu_refit(self):
+
+          p0_zjets_2e2mu = ROOT.RooRealVar("p0_zjets_2e2mu","p0_zjets_2e2mu",131.1)
+          p1_zjets_2e2mu = ROOT.RooRealVar("p1_zjets_2e2mu","p1_zjets_2e2mu",18.1)
+          p2_zjets_2e2mu = ROOT.RooRealVar("p2_zjets_2e2mu","p2_zjets_2e2mu",0.45)
+
+          p3_zjets_2e2mu = ROOT.RooRealVar("p3_zjets_2e2mu","p3_zjets_2e2mu",133.8)
+          p4_zjets_2e2mu = ROOT.RooRealVar("p4_zjets_2e2mu","p4_zjets_2e2mu",18.9)
+          p5_zjets_2e2mu = ROOT.RooRealVar("p5_zjets_2e2mu","p5_zjets_2e2mu",0.55)
+
+          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP2e2mu","landau_zjets_2e2mu", ROOT.RooArgList(landau_zjets_2e2mu))
+
+          return bkg_zjets
 
 '''
         w = ROOT.RooWorkspace("w","w")
