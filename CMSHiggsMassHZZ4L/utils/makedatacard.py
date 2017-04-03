@@ -61,4 +61,4 @@ class Makedatacard():
           self.WriteComment("## mass window [105.0,140.0]")
           self.WriteExpect(self.channelName, self.nSig, self.nBkg, self.processList, self.rates)
 
-
+          #write systematics
