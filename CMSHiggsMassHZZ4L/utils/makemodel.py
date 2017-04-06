@@ -1,4 +1,5 @@
 import ROOT
+import sys
 
 class MakeModel():
 
@@ -14,7 +15,7 @@ class MakeModel():
           self.CMS_zz4l_massErr = self.w_in.var("CMS_zz4l_massErr")
           self.MELA_KD = self.w_in.var("MELA_KD")
 
-#          self.w_out = ROOT.RooWorkspace()
+          self.w_out = config["w_out"]
 
 
       def getVariable(self,trueVar,falseVar,testStatement):
@@ -31,15 +32,14 @@ class MakeModel():
           CMS_zz4l_mean_sig = self.GetScaleUnc()
           CMS_zz4l_sigma_sig = self.GetResolutionUnc()
 
-
           #name = "CMS_zz4l_alpha2_{0}".format(self.channel)
           #CMS_zz4l_alpha2 = ROOT.RooRealVar(name,"CMS_zz4l_alpha2",0.0,-0.99,0.99)
           #name = "CMS_zz4l_n2_sig_{0}".format(self.channel)
           #CMS_zz4l_n2 = ROOT.RooRealVar(name,"CMS_zz4l_n2",0.0,-0.99,0.99)
           #name = "CMS_zz4l_alpha_{0}".format(self.channel)
           #CMS_zz4l_alpha = ROOT.RooRealVar(name,"CMS_zz4l_alpha",0.0,-0.99,0.99)
-          name = "CMS_zz4l_n_sig_{0}".format(self.channel)
-          CMS_zz4l_n = ROOT.RooRealVar(name,"CMS_zz4l_n",0.0,-0.99,0.99)
+          tmpname = "CMS_zz4l_n_sig_{0}".format(self.channel)
+          CMS_zz4l_n = ROOT.RooRealVar(tmpname,"CMS_zz4l_n",0.0,-0.99,0.99)
 
           CMS_zz4l_mean_sig.setVal(0)
           CMS_zz4l_sigma_sig.setVal(0)
@@ -58,39 +58,47 @@ class MakeModel():
           #there should not be difference in results to define mean of CB in these two ways (check)
           #rfv_mean_CB = ROOT.RooFormulaVar("mean_"+self.channel,"(" + doubleCBShape["mean"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_mean_sig))
           rfv_sigma_CB = ROOT.RooFormulaVar("sigma_"+self.channel,"(" + doubleCBShape["sigma"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_sigma_sig))
-          rfv_MassErr = ROOT.RooFormulaVar("rfv_MassErr_"+self.channel,"@1*@0*(1+@2)",ROOT.RooArgList(self.MassErr, self.MH, CMS_zz4l_sigma_sig))
+          rfv_MassErr = ROOT.RooFormulaVar("rfv_MassErr_"+self.channel,"@1*@0*(1+@2)",ROOT.RooArgList(self.CMS_zz4l_massErr, self.MH, CMS_zz4l_sigma_sig))
 
-          signalCB = ROOT.RooDoubleCB(name, name, self.CMS_zz4l_mass, \
-                                      rfv_mean_CB, self.getVariable(rfv_MassErr, rfv_sigma_CB, includeErr), \
-                                      rfv_alpha_CB, rfv_n_CB, rfv_alpha2_CB, rfv_n2_CB)
+          signalCB = ROOT.RooDoubleCB(name, name, self.CMS_zz4l_mass, rfv_mean_CB, self.getVariable(rfv_MassErr, rfv_sigma_CB, includeErr), rfv_alpha_CB, rfv_n_CB, rfv_alpha2_CB, rfv_n2_CB)
 
-          return signalCB
+          #signalCB.Print()
+          getattr(self.w_out,'import')(signalCB,ROOT.RooFit.RecycleConflictNodes())
+          #return signalCB
 
 
       #might not need these two
       def MakeBernstein(self, name, bernsteinShape):
+ 
+          bernstein_b0 = ROOT.RooRealVar(name+"_b0", "", float(bernsteinShape["b0"]) )
+          bernstein_b1 = ROOT.RooRealVar(name+"_b1", "", float(bernsteinShape["b1"]) )
+          bernstein_b2 = ROOT.RooRealVar(name+"_b2", "", float(bernsteinShape["b2"]) )
 
           bernsteinShape = ROOT.RooBernstein(name, name, self.CMS_zz4l_mass, \
-                                             RooArgList(bernsteinShape["b0"], bernsteinShape["b1"], bernsteinShape["b2"]) )
+                                             ROOT.RooArgList(bernstein_b0, bernstein_b1, bernstein_b2) )
 
-          return bernsteinShape
+          getattr(self.w_out,'import')(bernsteinShape,ROOT.RooFit.RecycleConflictNodes())
+          #return bernsteinShape
 
 
       def MakeLandau(self, name, landauShape):
 
-          landauShape = ROOT.RooLandau(name, name, self.CMS_zz4l_mass, RooArgList(landauShape["mean"], landauShape["sigma"]) )
-
-          return landauShape
+          landauMean = ROOT.RooRealVar(name+"_landauMean","",float(landauShape["mean"]) )
+          landauSigma = ROOT.RooRealVar(name+"_landauSigma","",float(landauShape["sigma"]) )
+          landauShape = ROOT.RooLandau(name, name, self.CMS_zz4l_mass, landauMean, landauSigma) 
+ 
+          getattr(self.w_out,'import')(landauShape,ROOT.RooFit.RecycleConflictNodes())
+          #return landauShape
 
 
       #might not need this one
       def MakeConditionalProd(self, name, model1, model2, conditionlVar):
 
-          conditionalProd = ROOT.RooProdPdf(name, name, RooArgSet(model1), ROOT.RooFit.Conditional(ROOT.RooArgSet(model2), ROOT.RooArgSet(conditionalVar) ) )
+          conditionalProd = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(model1), ROOT.RooFit.Conditional(ROOT.RooArgSet(model2), ROOT.RooArgSet(conditionalVar) ) )
           #modelEBE = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(errPdf), ROOT.RooFit.Conditional(ROOT.RooArgSet(model), ROOT.RooArgSet(self.CMS_zz4l_mass) ) )
           #modelEBE_KD = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(model), ROOT.RooFit.Conditional(ROOT.RooArgSet(KDPdf),ROOT.RooArgSet(self.MELA_KD) ) )
-
-          return conditionalProd
+          getattr(self.w_out,'import')(conditionalProd,ROOT.RooFit.RecycleConflictNodes())
+          #return conditionalProd
 
 
       #make below two as python template
@@ -135,10 +143,10 @@ class MakeModel():
 
           p0_zjets_4mu = ROOT.RooRealVar("p0_zjets_4mu","p0_zjets_4mu",130.4)
           p1_zjets_4mu = ROOT.RooRealVar("p1_zjets_4mu","p1_zjets_4mu",15.6)
-          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
+          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
           bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4mu","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
 
-          return bkg_zjets
+          getattr(self.w_out,'import')(bkg_zjets)
 
 
       def GetZXShape_4e_reco(self):
@@ -163,7 +171,7 @@ class MakeModel():
           p4_zjets_2e2mu = ROOT.RooRealVar("p4_zjets_2e2mu","p4_zjets_2e2mu",18.9)
           p5_zjets_2e2mu = ROOT.RooRealVar("p5_zjets_2e2mu","p5_zjets_2e2mu",0.55)
 
-          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
+          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
           bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP2e2mu","landau_zjets_2e2mu", ROOT.RooArgList(landau_zjets_2e2mu))
 
           return bkg_zjets
@@ -173,7 +181,7 @@ class MakeModel():
 
           p0_zjets_4mu = ROOT.RooRealVar("p0_zjets_4mu","p0_zjets_4mu",134.1)
           p1_zjets_4mu = ROOT.RooRealVar("p1_zjets_4mu","p1_zjets_4mu",21.01)
-          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
+          landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
           bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4mu","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
 
           return bkg_zjets
@@ -201,7 +209,7 @@ class MakeModel():
           p4_zjets_2e2mu = ROOT.RooRealVar("p4_zjets_2e2mu","p4_zjets_2e2mu",18.9)
           p5_zjets_2e2mu = ROOT.RooRealVar("p5_zjets_2e2mu","p5_zjets_2e2mu",0.55)
 
-          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
+          landau_zjets_2e2mu = ROOT.RooFormulaVar("landau_zjets_2e2mu","TMath::Landau(@0,@1,@2)*@3 + TMath::Landau(@0,@4,@5)*@6",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_2e2mu, p1_zjets_2e2mu, p2_zjets_2e2mu, p3_zjets_2e2mu, p4_zjets_2e2mu, p5_zjets_2e2mu))
           bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP2e2mu","landau_zjets_2e2mu", ROOT.RooArgList(landau_zjets_2e2mu))
 
           return bkg_zjets

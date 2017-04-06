@@ -43,12 +43,12 @@ class Makedatacard():
       
       
       def WriteExpect(self, channelName, nSig, nBkg, processList, rates):
-      
-          self.txtfile.write("bin " + " ".join.([channelName]*len(processList) ) + "\n")
+
+          self.txtfile.write("bin " + " ".join([channelName]*len(processList)) + "\n")
           self.txtfile.write("process " + " ".join(processList) + "\n")
           self.txtfile.write("process ")
-          self.txtfile.write(" ".join([i-len(sell.nSig)+1 for i in range(nSig)]) )
-          self.txtfile.write(" ".join([i+1 for i in range(nBkg)]) + "\n")
+          self.txtfile.write(" ".join([str(i-nSig+1) for i in range(nSig)]) )
+          self.txtfile.write(" ".join([str(i+1) for i in range(nBkg)]) + "\n")
           self.txtfile.write("rate " + " ".join(rates) + "\n")
           self.txtfile.write("------------\n")
 

@@ -10,11 +10,12 @@ def GetDict(fs, cat):
        catDict = [catYaml[i].replace('qqH', 'name_VBF_'+str(i)).replace(": ","='")+"'" for i in range(len(catYaml))]
 
     yields = ""
-    for x in catDict:
+    for x in catDict[:-1]:
 #        print '           '+cat
 #        print '   ' + cat
-        yields += (x.split("'"))[1]
-#    print cat,":",yields
+        yields += (x.split("'"))[1] + "+"
+    yields += (catDict[-1].split("'"))[1]
+    print cat,":",yields
 #    print ''
     return yields
 
@@ -33,4 +34,4 @@ for fs in finalState:
              else:
                 myfile.write("'"+cat + "':'" + GetDict(fs, cat) + "' \\\n")
          myfile.write("}")
-#    print ''
+    print ''
