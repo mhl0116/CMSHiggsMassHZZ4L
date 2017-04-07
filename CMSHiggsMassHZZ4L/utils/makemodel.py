@@ -226,4 +226,5 @@ class MakeModel():
           tempDataHist = ROOT.RooDataHist(datahistName,datahistName, arglist, template)
           pdf = ROOT.RooHistPdf(pdfname,pdfname,argset,tempDataHist)
           #var = RooArgList or RooArgset
+          getattr(self.w_out,'import')(pdf,ROOT.RooFit.RecycleConflictNodes())
 
