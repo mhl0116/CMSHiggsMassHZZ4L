@@ -1,0 +1,15 @@
+imax 1
+jmax 7
+kmax *
+------------
+shapes * * hzz4l_4muS_13TeV.input.root w:$PROCESS 
+------------
+bin a1 
+observation 59 
+------------
+## ## mass window [105.0,140.0]
+bin a1 a1 a1 a1 a1 a1 a1 a1
+process ggH_hzz qqH_hzz WH_hzz ZH_hzz ttH_hzz bkg_qqzz bkg_ggzz bkg_zjets
+process -4 -3 -2 -1 01 2 3
+rate 1 1 1 1 1 22.6892 2.48368 12.2527
+------------
