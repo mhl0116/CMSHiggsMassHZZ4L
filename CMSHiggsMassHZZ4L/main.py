@@ -14,10 +14,14 @@ import yields.signalYields_4e
 import yields.signalYields_2e2mu
 
 import sys
+ROOT.gSystem.Load("libHiggsAnalysisCombinedLimit.so")
 
 class main():
 
       def __init__(self, config=0): # config: fs, dim, refit
+
+          self.lumi = 35.8671
+          self.datatreename = "data_obs"
 
           self.channel = "1"
           self.dim = "1D"
@@ -43,7 +47,7 @@ class main():
           getattr(w_in,'import')(self.CMS_zz4l_mass)
           getattr(w_in,'import')(self.CMS_zz4l_massErr)
           getattr(w_in,'import')(self.MELA_KD)
-          self.w_out = ROOT.RooWorkspace("w_out")
+          self.w_out = ROOT.RooWorkspace("w")
 
           workspaceConfig = {"channel":self.channel, "w_in":w_in, "MH":125, "w_out":self.w_out}
           self.models = utils.makemodel.MakeModel(workspaceConfig)
@@ -52,7 +56,7 @@ class main():
                               "WH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_WH.shape),\
                               "ZH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_ZH.shape),\
                               "qqZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_qqZZ.shape),\
-                              "ggZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_qqZZ.shape) } 
+                              "ggZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_ggZZ.shape) } 
 
           self.yields = yields.signalYields_4mu.signalYields_4mu
 
@@ -83,7 +87,7 @@ class main():
              #signal
              doubleCB = ROOT.RooDoubleCB()
              for cat in self.categories:
-                 name_dcb = "signalCB_"+cat+"_"+self.channel
+                 name_dcb = cat+"_hzz"
                  if (cat == "WH" or cat == "ZH"):
                     #res WH/ZH
                     self.models.MakeDoubleCB(cat+"_res", self.paramShapes["DCB"], False)
@@ -96,25 +100,23 @@ class main():
                     #nonRes WH/ZH
                     self.models.MakeLandau(cat+"_nonRes", landaushape)
                     doubleCB = ROOT.RooAddPdf(name_dcb, name_dcb, self.w_out.pdf(cat+"_res"), self.w_out.pdf(cat+"_nonRes"), rv_frac)
-                    getattr(self.w_out,'import')(doubleCB)
+                    getattr(self.w_out,'import')(doubleCB,ROOT.RooFit.RecycleConflictNodes())
                  else:
                     self.models.MakeDoubleCB(name_dcb, self.paramShapes["DCB"], False)
 #                    getattr(self.w_out,'import')(doubleCB)
 
              #irr background
-             name_qqzz = "bkg_qqzzTmp_"+self.channel
+             name_qqzz = "bkg_qqzz"
              bernsteinShape = {"b0": (self.paramShapes["qqZZ"])["chebPol1"],\
                                "b1": (self.paramShapes["qqZZ"])["chebPol2"],\
                                "b2": (self.paramShapes["qqZZ"])["chebPol3"],}
              qqzz = self.models.MakeBernstein(name_qqzz, bernsteinShape)
-#             getattr(self.w_out,'import')(qqzz)
 
-             name_ggzz = "bkg_ggzzTmp_"+self.channel
+             name_ggzz = "bkg_ggzz"
              bernsteinShape = {"b0": (self.paramShapes["ggZZ"])["chebPol1"],\
                                "b1": (self.paramShapes["ggZZ"])["chebPol2"],\
                                "b2": (self.paramShapes["ggZZ"])["chebPol3"],}
              ggzz = self.models.MakeBernstein(name_ggzz, bernsteinShape)
-#             getattr(self.w_out,'import')(ggzz)
 
              #red background
              zjets = self.models.GetZXShape_4mu_reco()
@@ -180,10 +182,8 @@ class main():
 
           rfvSigRate_ggH = ROOT.RooFormulaVar("ggH_hzz_norm", (self.yields)["ggH"], ROOT.RooArgList(self.MH))
           rfvSigRate_VBF = ROOT.RooFormulaVar("qqH_hzz_norm",(self.yields)["VBF"], ROOT.RooArgList(self.MH))
-#          rfvSigRate_WH = ROOT.RooFormulaVar("WH_hzz_norm", (self.yields)["WH_lep"]+"+"+(self.yields)["WH_had"], ROOT.RooArgList(self.MH))
-#          rfvSigRate_ZH = ROOT.RooFormulaVar("ZH_hzz_norm", (self.yields)["ZH_lep"]+"+"+(self.yields)["ZH_had"], ROOT.RooArgList(self.MH))
-          rfvSigRate_WH = ROOT.RooFormulaVar("WH_hzz_norm", (self.yields)["WH_lep"], ROOT.RooArgList(self.MH))
-          rfvSigRate_ZH = ROOT.RooFormulaVar("ZH_hzz_norm", (self.yields)["ZH_lep"], ROOT.RooArgList(self.MH))
+          rfvSigRate_WH = ROOT.RooFormulaVar("WH_hzz_norm", (self.yields)["WH_lep"]+"+"+(self.yields)["WH_had"], ROOT.RooArgList(self.MH))
+          rfvSigRate_ZH = ROOT.RooFormulaVar("ZH_hzz_norm", (self.yields)["ZH_lep"]+"+"+(self.yields)["ZH_had"], ROOT.RooArgList(self.MH))
           rfvSigRate_ttH = ROOT.RooFormulaVar("ttH_hzz_norm", (self.yields)["ttH"], ROOT.RooArgList(self.MH))
 
           getattr(self.w_out,'import')(rfvSigRate_ggH, ROOT.RooFit.RecycleConflictNodes())
@@ -193,10 +193,33 @@ class main():
           getattr(self.w_out,'import')(rfvSigRate_ttH, ROOT.RooFit.RecycleConflictNodes())
 
 
+      def LoadData(self):
 
+          datafiledict = {"1":"hzz4mu_"+str(self.lumi)+".root",\
+                          "2":"hzz4e_"+str(self.lumi)+".root",\
+                          "3":"hzz2e2mu_"+str(self.lumi)+".root"}
+
+          datafilename = "data/" + datafiledict[self.channel]
+          datafile = ROOT.TFile(datafilename)
+          datatree = datafile.Get(self.datatreename)
+          data_obs = ROOT.RooDataSet()
+          if self.dim == "1D":
+             data_obs = ROOT.RooDataSet("data_obs","data_obs",datatree,ROOT.RooArgSet(self.CMS_zz4l_mass))
+          if self.dim == "2D":
+             data_obs = ROOT.RooDataSet("data_obs","data_obs",datatree,ROOT.RooArgSet(self.CMS_zz4l_mass,self.CMS_zz4l_massErr))
+          if self.dim == "3D":
+             data_obs = ROOT.RooDataSet("data_obs","data_obs",datatree,ROOT.RooArgSet(self.CMS_zz4l_mass,self.CMS_zz4l_massErr,self.MELA_KD))
+        
+          getattr(self.w_out,'import')(data_obs)#, ROOT.RooFit.RecycleConflictNodes())
 
 test = main()
+
 test.BuildWorkspace()
 test.LoadYields()
+test.LoadData()
 test.w_out.Print()
+#test.w_out.var("CMS_zz4l_mass").setVal(138.032)
+test.w_out.var("CMS_zz4l_mass").Print()
+test.w_out.writeToFile("hzz4l_4muS_13TeV.input.root")
+
 test.BuildDatacard()

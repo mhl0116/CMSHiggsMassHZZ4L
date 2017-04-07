@@ -54,9 +54,9 @@ class MakeModel():
           rfv_n2_CB = ROOT.RooFormulaVar("n2_"+self.channel,"(" + doubleCBShape["n2"] + ")",ROOT.RooArgList(self.MH))
           rfv_alpha2_CB = ROOT.RooFormulaVar("alpha2_"+self.channel,"(" + doubleCBShape["alpha2"] + ")", ROOT.RooArgList(self.MH))
 
-          rfv_mean_CB = ROOT.RooFormulaVar("mean_"+self.channel,"(" + doubleCBShape["mean"] + ")"+"+@0*@1", ROOT.RooArgList(self.MH, CMS_zz4l_mean_sig))
+          #rfv_mean_CB = ROOT.RooFormulaVar("mean_"+self.channel,"(" + doubleCBShape["mean"] + ")"+"+@0*@1", ROOT.RooArgList(self.MH, CMS_zz4l_mean_sig))
           #there should not be difference in results to define mean of CB in these two ways (check)
-          #rfv_mean_CB = ROOT.RooFormulaVar("mean_"+self.channel,"(" + doubleCBShape["mean"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_mean_sig))
+          rfv_mean_CB = ROOT.RooFormulaVar("mean_"+self.channel,"(" + doubleCBShape["mean"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_mean_sig))
           rfv_sigma_CB = ROOT.RooFormulaVar("sigma_"+self.channel,"(" + doubleCBShape["sigma"] + ")"+"*(1+@1)", ROOT.RooArgList(self.MH, CMS_zz4l_sigma_sig))
           rfv_MassErr = ROOT.RooFormulaVar("rfv_MassErr_"+self.channel,"@1*@0*(1+@2)",ROOT.RooArgList(self.CMS_zz4l_massErr, self.MH, CMS_zz4l_sigma_sig))
 
@@ -144,7 +144,7 @@ class MakeModel():
           p0_zjets_4mu = ROOT.RooRealVar("p0_zjets_4mu","p0_zjets_4mu",130.4)
           p1_zjets_4mu = ROOT.RooRealVar("p1_zjets_4mu","p1_zjets_4mu",15.6)
           landau_zjets_4mu = ROOT.RooFormulaVar("landau_zjets_4mu","TMath::Landau(@0,@1,@2)",ROOT.RooArgList(self.CMS_zz4l_mass,p0_zjets_4mu,p1_zjets_4mu))
-          bkg_zjets = ROOT.RooGenericPdf("bkg_zjetsTMP4mu","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
+          bkg_zjets = ROOT.RooGenericPdf("bkg_zjets","landau_zjets_4mu", ROOT.RooArgList(landau_zjets_4mu) )
 
           getattr(self.w_out,'import')(bkg_zjets)
 
