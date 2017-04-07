@@ -238,6 +238,27 @@ class main():
           ## treatmeant of zjets m4l shape can be improved
           self.w_out.pdf("bkg_zjets").SetName("bkg_zjets_1D")
 
+          ## build 2D (m4l, m4lErr/m4l) model
+          for cat in self.categories:
+              self.models.MakeConditionalProd(cat+"_hzz", w_out.pdf("pdfErr_s"), w_out.pdf(cat+"_hzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_qqzz", w_out.pdf("pdfErr_qqzz"), w_out.pdf("bkg_qqzz_1D"), self.CMS_zz4l_mass) 
+          self.models.MakeConditionalProd("bkg_ggzz", w_out.pdf("pdfErr_ggzz"), w_out.pdf("bkg_ggzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_zjets", w_out.pdf("pdfErr_zjets"), w_out.pdf("bkg_zjets_1D"), self.CMS_zz4l_mass)
+
+
+      def BuildModels_3D(self):
+
+          #assume 2D(m4l, m4lErr/m4l) model is already made
+          for cat in self.categories:
+              self.w_out.pdf(cat+"_hzz").SetName(cat+"_hzz_2D")
+              sigCB2d_ggH = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(self.getVariable(sig_ggHErr,signalCB_ggH, self.bIncludingError)),ROOT.RooFit.Conditional(ROOT.RooArgSet(sigTemplateMorphPdf_ggH),ROOT.RooArgSet(D) ) )
+
+          self.w_out.pdf("bkg_qqzz").SetName("bkg_qqzz_2D")
+          bkg2d_qqzz = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(self.getVariable(bkg_qqzzErr,bkg_qqzz,self.bIncludingError)),ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_qqzz),ROOT.RooArgSet(D) ) )
+          self.w_out.pdf("bkg_ggzz").SetName("bkg_ggzz_2D")
+          self.w_out.pdf("bkg_zjets").SetName("bkg_zjets")
+          
+
       def PrepareShapesToBuildModel(self):
 
           ## 1D model parameters
