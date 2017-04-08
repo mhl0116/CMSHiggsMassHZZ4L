@@ -249,14 +249,46 @@ class main():
       def BuildModels_3D(self):
 
           #assume 2D(m4l, m4lErr/m4l) model is already made
+          ## signal
           for cat in self.categories:
               self.w_out.pdf(cat+"_hzz").SetName(cat+"_hzz_2D")
-              sigCB2d_ggH = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(self.getVariable(sig_ggHErr,signalCB_ggH, self.bIncludingError)),ROOT.RooFit.Conditional(ROOT.RooArgSet(sigTemplateMorphPdf_ggH),ROOT.RooArgSet(D) ) )
+              sigTemplateMorphPdf = ROOT.FastVerticalInterpHistPdf2D("sigTemplateMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                     true, ROOT.RooArgList(self.w_out.pdf("sigTemplatePdf")), ROOT.RooArgList(),1.0,1)
 
-          self.w_out.pdf("bkg_qqzz").SetName("bkg_qqzz_2D")
-          bkg2d_qqzz = ROOT.RooProdPdf(name,name,ROOT.RooArgSet(self.getVariable(bkg_qqzzErr,bkg_qqzz,self.bIncludingError)),ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_qqzz),ROOT.RooArgSet(D) ) )
-          self.w_out.pdf("bkg_ggzz").SetName("bkg_ggzz_2D")
-          self.w_out.pdf("bkg_zjets").SetName("bkg_zjets")
+              sigCB3d = ROOT.RooProdPdf(cat+"_hzz","", ROOT.RooArgSet(self.w_out.pdf(cat+"_hzz_2D")),\
+                                        ROOT.RooFit.Conditional(ROOT.RooArgSet(sigTemplateMorphPdf),ROOT.RooArgSet(self.MELA_KD) ) )
+
+              getattr(self.w_out,'import')(sigCB3d,ROOT.RooFit.RecycleConflictNodes())
+
+          ## qqzz and ggzz
+          for cat in ["qqzz","ggzz"]:
+              self.w_out.pdf("bkg_"+cat).SetName("bkg_"+cat+"_2D")
+              bkgTemplateMorphPdf_zz = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                        true,ROOT.RooArgList(self.w_out.pdf("bkgTemplatePdf_"+cat)),ROOT.RooArgList(),1.0,1)
+
+          bkg3d_zz = ROOT.RooProdPdf("bkg_"+cat,"",ROOT.RooArgSet(ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
+                                       ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zz),ROOT.RooArgSet(self.MELA_KD) ) )
+
+          getattr(self.w_out,'import')(bkg3d_zz,ROOT.RooFit.RecycleConflictNodes())
+
+          ## zjets
+          self.w_out.pdf("bkg_zjets").SetName("bkg_zjets_2D")
+
+          funcList_zjets = ROOT.RooArgList()
+          morphBkgVarName = "CMS_zz4l_bkgMELA"
+          alphaMorphBkg = ROOT.RooRealVar(morphBkgVarName,morphBkgVarName,0,-20,20)
+          morphVarListBkg = ROOT.RooArgList()
+
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX"))
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_up"))
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_dn"))
+          alphaMorphBkg.setConstant(False)
+          morphVarListBkg.add(alphaMorphBkg)
+          bkgTemplateMorphPdf_zjets = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_ZX","",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                       true,funcList_zjets,morphVarListBkg,1.0,1)
+          bkg3d_zjets = ROOT.RooProdPdf("bkg_zjets","",ROOT.RooArgSet(self.w_out.pdf("bkg_zjets_2D")),\
+                                        ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zjets),ROOT.RooArgSet(self.MELA_KD) ) )
+
           
 
       def PrepareShapesToBuildModel(self):
@@ -272,40 +304,35 @@ class main():
            }
 
           ## m4lErr/m4l template for 2D(m4l, m4lErr/m4l) model building
-          self.m4lErrShapes = \
-          {\
-          "signal": self.models.HistTemplateToPdf("shapes/templates2D/Dm_signal_4mu.root", "d_Dm", "pdfErr_s", \
-                                                   ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          "qqZZ": self.models.HistTemplateToPdf("shapes/templates2D/Dm_qqZZ_4mu.root", "d_Dm", "pdfErr_qqzz", \
-                                                 ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          "ggZZ": self.models.HistTemplateToPdf("shapes/templates2D/Dm_ggZZ_4mu.root", "d_Dm", "pdfErrS_ggzz", \
-                                                 ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          "ZX": self.models.HistTemplateToPdf("shapes/templates2D/pdfErrZX_4mu.root", "pdfErrZX_4mu", "pdfErr_zx", \
-                                               ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr))\
-           }
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_signal_4mu.root", "d_Dm", "pdfErr_s", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_qqZZ_4mu.root", "d_Dm", "pdfErr_qqzz", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_ggZZ_4mu.root", "d_Dm", "pdfErrS_ggzz", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/pdfErrZX_4mu.root", "pdfErrZX_4mu", "pdfErr_zx", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr))\
 
           ## KD template for 3D(m4l, m4l/m4lErr, KD) model building 
-          self.KDShapes = \
-          {\
-          "signal": self.models.HistTemplateToPdf("shapes/templates2D/Dsignal_4mu.root", "h_mzzD", "sigTemplatePdf",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          "qqZZ": self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_qqZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_qqzz",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          "ggZZ": self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ggZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_ggzz",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          "ZX": self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD", "bkgTemplatePdf_ZX",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          "ZX_up": self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_up", "bkgTemplateZX_up",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          "ZX_dn": self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_dn", "bkgTemplateZX_dn",\
-                                                   ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
-                                                   ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          }
+          self.models.HistTemplateToPdf("shapes/templates2D/Dsignal_4mu.root", "h_mzzD", "sigTemplatePdf",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_qqZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_qqzz",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ggZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_ggzz",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD", "bkgTemplatePdf_ZX",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_up", "bkgTemplateZX_up",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_dn", "bkgTemplateZX_dn",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          
 
 
       def MakeSlimWorkspace(self):
