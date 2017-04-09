@@ -24,7 +24,7 @@ class main():
           self.datatreename = "data_obs"
 
           self.channel = "1"
-          self.dim = "1D"
+          self.dim = "3D"
 
           self.mH = 125
           self.MH = ROOT.RooRealVar("MH","MH",self.mH)
@@ -91,7 +91,7 @@ class main():
           self.LoadData()
 
           if self.dim == "1D": self.BuildModels_1D()
-          if self.dim == "2D": self.BuildModels_2D()
+          if (self.dim == "2D") or (self.dim == "3D"): self.BuildModels_2D()
           if self.dim == "3D": self.BuildModels_3D()
 
 
@@ -240,10 +240,10 @@ class main():
 
           ## build 2D (m4l, m4lErr/m4l) model
           for cat in self.categories:
-              self.models.MakeConditionalProd(cat+"_hzz", w_out.pdf("pdfErr_s"), w_out.pdf(cat+"_hzz_1D"), self.CMS_zz4l_mass)
-          self.models.MakeConditionalProd("bkg_qqzz", w_out.pdf("pdfErr_qqzz"), w_out.pdf("bkg_qqzz_1D"), self.CMS_zz4l_mass) 
-          self.models.MakeConditionalProd("bkg_ggzz", w_out.pdf("pdfErr_ggzz"), w_out.pdf("bkg_ggzz_1D"), self.CMS_zz4l_mass)
-          self.models.MakeConditionalProd("bkg_zjets", w_out.pdf("pdfErr_zjets"), w_out.pdf("bkg_zjets_1D"), self.CMS_zz4l_mass)
+              self.models.MakeConditionalProd(cat+"_hzz", self.w_out.pdf("pdfErr_s"), self.w_out.pdf(cat+"_hzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_qqzz", self.w_out.pdf("pdfErr_qqzz"), self.w_out.pdf("bkg_qqzz_1D"), self.CMS_zz4l_mass) 
+          self.models.MakeConditionalProd("bkg_ggzz", self.w_out.pdf("pdfErr_ggzz"), self.w_out.pdf("bkg_ggzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_zjets", self.w_out.pdf("pdfErr_zjets"), self.w_out.pdf("bkg_zjets_1D"), self.CMS_zz4l_mass)
 
 
       def BuildModels_3D(self):
@@ -253,7 +253,7 @@ class main():
           for cat in self.categories:
               self.w_out.pdf(cat+"_hzz").SetName(cat+"_hzz_2D")
               sigTemplateMorphPdf = ROOT.FastVerticalInterpHistPdf2D("sigTemplateMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
-                                                                     true, ROOT.RooArgList(self.w_out.pdf("sigTemplatePdf")), ROOT.RooArgList(),1.0,1)
+                                                                     True, ROOT.RooArgList(self.w_out.pdf("sigTemplatePdf")), ROOT.RooArgList(),1.0,1)
 
               sigCB3d = ROOT.RooProdPdf(cat+"_hzz","", ROOT.RooArgSet(self.w_out.pdf(cat+"_hzz_2D")),\
                                         ROOT.RooFit.Conditional(ROOT.RooArgSet(sigTemplateMorphPdf),ROOT.RooArgSet(self.MELA_KD) ) )
@@ -264,32 +264,34 @@ class main():
           for cat in ["qqzz","ggzz"]:
               self.w_out.pdf("bkg_"+cat).SetName("bkg_"+cat+"_2D")
               bkgTemplateMorphPdf_zz = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
-                                                                        true,ROOT.RooArgList(self.w_out.pdf("bkgTemplatePdf_"+cat)),ROOT.RooArgList(),1.0,1)
+                                                                        True,ROOT.RooArgList(self.w_out.pdf("bkgTemplatePdf_"+cat)),ROOT.RooArgList(),1.0,1)
 
-          bkg3d_zz = ROOT.RooProdPdf("bkg_"+cat,"",ROOT.RooArgSet(ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
-                                       ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zz),ROOT.RooArgSet(self.MELA_KD) ) )
+              bkg3d_zz = ROOT.RooProdPdf("bkg_"+cat,"",ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
+                                         ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zz),ROOT.RooArgSet(self.MELA_KD) ) )
 
-          getattr(self.w_out,'import')(bkg3d_zz,ROOT.RooFit.RecycleConflictNodes())
+              getattr(self.w_out,'import')(bkg3d_zz,ROOT.RooFit.RecycleConflictNodes())
 
           ## zjets
           self.w_out.pdf("bkg_zjets").SetName("bkg_zjets_2D")
 
-          funcList_zjets = ROOT.RooArgList()
-          morphBkgVarName = "CMS_zz4l_bkgMELA"
-          alphaMorphBkg = ROOT.RooRealVar(morphBkgVarName,morphBkgVarName,0,-20,20)
+          alphaMorphBkg = ROOT.RooRealVar("CMS_zz4l_bkgMELA","",0,-20,20)
+          alphaMorphBkg.setConstant(False)
           morphVarListBkg = ROOT.RooArgList()
+          morphVarListBkg.add(alphaMorphBkg)
 
+          funcList_zjets = ROOT.RooArgList()
           funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX"))
           funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_up"))
           funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_dn"))
-          alphaMorphBkg.setConstant(False)
-          morphVarListBkg.add(alphaMorphBkg)
+
           bkgTemplateMorphPdf_zjets = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_ZX","",self.CMS_zz4l_mass,self.MELA_KD,\
-                                                                       true,funcList_zjets,morphVarListBkg,1.0,1)
+                                                                       True,funcList_zjets,morphVarListBkg,1.0,1)
+
           bkg3d_zjets = ROOT.RooProdPdf("bkg_zjets","",ROOT.RooArgSet(self.w_out.pdf("bkg_zjets_2D")),\
                                         ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zjets),ROOT.RooArgSet(self.MELA_KD) ) )
 
-          
+          getattr(self.w_out,'import')(bkg3d_zjets,ROOT.RooFit.RecycleConflictNodes())
+ 
 
       def PrepareShapesToBuildModel(self):
 
@@ -304,13 +306,13 @@ class main():
            }
 
           ## m4lErr/m4l template for 2D(m4l, m4lErr/m4l) model building
-          self.models.HistTemplateToPdf("shapes/templates2D/Dm_signal_4mu.root", "d_Dm", "pdfErr_s", \
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_signal_4mu.root", "h_Dm", "pdfErr_s", \
                                         ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          self.models.HistTemplateToPdf("shapes/templates2D/Dm_qqZZ_4mu.root", "d_Dm", "pdfErr_qqzz", \
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_qqZZ_4mu.root", "h_Dm", "pdfErr_qqzz", \
                                         ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          self.models.HistTemplateToPdf("shapes/templates2D/Dm_ggZZ_4mu.root", "d_Dm", "pdfErrS_ggzz", \
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_ggZZ_4mu.root", "h_Dm", "pdfErr_ggzz", \
                                         ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
-          self.models.HistTemplateToPdf("shapes/templates2D/pdfErrZX_4mu.root", "pdfErrZX_4mu", "pdfErr_zx", \
+          self.models.HistTemplateToPdf("shapes/templates2D/pdfErrZX_4mu.root", "pdfErrZX_4mu", "pdfErr_zjets", \
                                         ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr))\
 
           ## KD template for 3D(m4l, m4l/m4lErr, KD) model building 
@@ -326,13 +328,13 @@ class main():
           self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD", "bkgTemplatePdf_ZX",\
                                         ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
                                         ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_up", "bkgTemplateZX_up",\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_up", "bkgTemplatePdf_ZX_up",\
                                         ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
                                         ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_dn", "bkgTemplateZX_dn",\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_dn", "bkgTemplatePdf_ZX_dn",\
                                         ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
                                         ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
-          
+
 
 
       def MakeSlimWorkspace(self):
@@ -341,7 +343,14 @@ class main():
 test = main()
 
 test.BuildWorkspace()
+test.w_out.var("CMS_zz4l_mass").setVal(138.032)
+test.w_out.var("CMS_zz4l_massErr").setVal(0.0101069)
+test.w_out.var("CMS_zz4l_mass").setBins(18)
 test.w_out.Print()
 test.w_out.writeToFile("hzz4l_4muS_13TeV.input.root")
 
 test.BuildDatacard()
+
+
+
+print "1Debe model: after do text2workspace, bkg_qqzz_1D value changes ?? "

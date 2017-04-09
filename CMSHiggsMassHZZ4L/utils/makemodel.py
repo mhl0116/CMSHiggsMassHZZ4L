@@ -92,7 +92,7 @@ class MakeModel():
 
 
       #might not need this one
-      def MakeConditionalProd(self, name, model1, model2, conditionlVar):
+      def MakeConditionalProd(self, name, model1, model2, conditionalVar):
 
           conditionalProd = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(model1), ROOT.RooFit.Conditional(ROOT.RooArgSet(model2), ROOT.RooArgSet(conditionalVar) ) )
           #modelEBE = ROOT.RooProdPdf(name, name, ROOT.RooArgSet(errPdf), ROOT.RooFit.Conditional(ROOT.RooArgSet(model), ROOT.RooArgSet(self.CMS_zz4l_mass) ) )
@@ -227,4 +227,32 @@ class MakeModel():
           pdf = ROOT.RooHistPdf(pdfname,pdfname,argset,tempDataHist)
           #var = RooArgList or RooArgset
           getattr(self.w_out,'import')(pdf,ROOT.RooFit.RecycleConflictNodes())
+
+
+      def histogramBinFix(self,hist,histname):
+
+          dBinsX = hist.GetXaxis().GetNbins()
+          dBinsY = hist.GetYaxis().GetNbins()
+          dLowY = hist.GetYaxis().GetXmin()
+          dHighY = hist.GetYaxis().GetXmax()
+
+          xBins = array('d', [105]) # e.g. self.low_M =105, self.high_M=140
+          nBinsNew = 0
+          for nxbin in range(1,dBinsX):
+              if 105<hist.GetXaxis().GetBinLowEdge(nxbin):
+                  if 140>hist.GetXaxis().GetBinLowEdge(nxbin):
+                     xBins.append(hist.GetXaxis().GetBinLowEdge(nxbin))
+                     nBinsNew+=1
+
+          xBins.append(105)
+
+          hist_fix = ROOT.TH2F(histname,histname,nBinsNew+1,xBins,dBinsY,dLowY,dHighY)
+
+          for nxbin in range(1,hist_fix.GetXaxis().GetNbins()+1):
+              binnum = hist.FindBin(hist_fix.GetXaxis().GetBinCenter(nxbin),hist_fix.GetYaxis().GetBinCenter(nybin))
+              binval = hist.GetBinContent(binnum)
+              currentbin = hist_fix.FindBin(hist_fix.GetXaxis().GetBinCenter(nxbin),hist_fix.GetYaxis().GetBinCenter(nybin))
+              hist_fix.SetBinContent(currentbin,binval)
+
+          return hist_fix
 
