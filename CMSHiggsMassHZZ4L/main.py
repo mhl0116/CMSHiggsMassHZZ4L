@@ -18,46 +18,51 @@ ROOT.gSystem.Load("libHiggsAnalysisCombinedLimit.so")
 
 class main():
 
-      def __init__(self, config=0): # config: fs, dim, refit
+      def __init__(self, config=0): # config: fs, dim, refit ##### move ALL hardcoded number into config
 
           self.lumi = 35.8671
           self.datatreename = "data_obs"
 
           self.channel = "1"
-          self.dim = "1D"
+          self.dim = "3D"
 
           self.mH = 125
           self.MH = ROOT.RooRealVar("MH","MH",self.mH)
 
+          #intermediate workspace to save all models (intermediate and final models)
+          self.w_out = ROOT.RooWorkspace("w")
+
           #inputs for workspace
+          ## observables
+          ### m4l
           self.CMS_zz4l_mass = ROOT.RooRealVar("CMS_zz4l_mass","CMS_zz4l_mass",105,140)
           self.CMS_zz4l_mass.setBins(700)
-
+          ### m4lErr/m4l
           massErrBinning = self.GetBinning("shapes/templates2D/Dm_signal_4mu.root", "h_Dm")
           self.CMS_zz4l_massErr = ROOT.RooRealVar("CMS_zz4l_massErr", "CMS_zz4l_massErr",massErrBinning[1],massErrBinning[2])
           self.CMS_zz4l_massErr.setBins(massErrBinning[0])
-
+          ### D_bkg^kin (ME-based kinematic discriminat)
           KDBinning = self.GetBinning("shapes/templates2D/Dsignal_4mu.root", "h_mzzD","y")
           self.MELA_KD = ROOT.RooRealVar("MELA_KD","MELA_KD",KDBinning[1],KDBinning[2])
           self.MELA_KD.setBins(KDBinning[0])
-
-          self.categories = ["ggH","qqH","WH","ZH","ttH"]
-
+          ### load observables into w_in for model building
+          ### 1D(m4l), 2D(m4l, m4lErr/m4l), 3D(m4l, m4l/m4lErr, KD)
           w_in = ROOT.RooWorkspace("w_in")
           getattr(w_in,'import')(self.CMS_zz4l_mass)
           getattr(w_in,'import')(self.CMS_zz4l_massErr)
           getattr(w_in,'import')(self.MELA_KD)
-          self.w_out = ROOT.RooWorkspace("w")
 
+          ## production modes
+          self.categories = ["ggH","qqH","WH","ZH","ttH"]
+
+          ## create "MakeModel" class to build models
           workspaceConfig = {"channel":self.channel, "w_in":w_in, "MH":125, "w_out":self.w_out}
           self.models = utils.makemodel.MakeModel(workspaceConfig)
 
-          self.paramShapes = {"DCB": self.PickShapePerChannel(shapes.DCB_parametrization.shape),\
-                              "WH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_WH.shape),\
-                              "ZH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_ZH.shape),\
-                              "qqZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_qqZZ.shape),\
-                              "ggZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_ggZZ.shape) } 
+          ## prepare input shapes (m4l,m4lErr/m4l,KD) to build models
+          self.PrepareShapesToBuildModel()
 
+          ## yields for signal and background
           self.yields = yields.signalYields_4mu.signalYields_4mu
 
           #inputs for datacard
@@ -65,13 +70,13 @@ class main():
           rates = ["1","1","1","1","1",str(22.6892), str(2.48368), str(12.2527)]
           datacardfile =  open("test.txt", "w")
           datacardInputs = {\
-                                 "txtfile": datacardfile, \
-                                 "nChannel": 1, "nSig": 5, "nBkg": 3,\
-                                 "workspaceName": "hzz4l_4muS_13TeV.input.root",
-                                 "channelName": "a1",\
-                                 "obsEvents": 59,\
-                                 "processList": processlist, "rates": rates                                 
-                                }
+                            "txtfile": datacardfile, \
+                            "nChannel": 1, "nSig": 5, "nBkg": 3,\
+                            "workspaceName": "hzz4l_4muS_13TeV.input.root",
+                            "channelName": "a1",\
+                            "obsEvents": 59,\
+                            "processList": processlist, "rates": rates                                 
+                           }
 
           self.datacard = utils.makedatacard.Makedatacard(datacardInputs)
 
@@ -82,72 +87,13 @@ class main():
 
       def BuildWorkspace(self):
 
-          if self.dim == "1D":
+          self.LoadYields()
+          self.LoadData()
 
-             #signal
-             doubleCB = ROOT.RooDoubleCB()
-             for cat in self.categories:
-                 name_dcb = cat+"_hzz"
-                 if (cat == "WH" or cat == "ZH"):
-                    #res WH/ZH
-                    self.models.MakeDoubleCB(cat+"_res", self.paramShapes["DCB"], False)
-                    #manipulate name of parameter in shape dictionary
-                    landaushape = {"mean": (self.paramShapes[cat+"_nonRes"])[cat+"p0"],\
-                                   "sigma": (self.paramShapes[cat+"_nonRes"])[cat+"p1"]}
-                    #frac
-                    frac = (self.paramShapes[cat+"_nonRes"])[cat+"frac"]
-                    rv_frac = ROOT.RooRealVar(cat+"_frac_"+self.channel,"",float(frac) )
-                    #nonRes WH/ZH
-                    self.models.MakeLandau(cat+"_nonRes", landaushape)
-                    doubleCB = ROOT.RooAddPdf(name_dcb, name_dcb, self.w_out.pdf(cat+"_res"), self.w_out.pdf(cat+"_nonRes"), rv_frac)
-                    getattr(self.w_out,'import')(doubleCB,ROOT.RooFit.RecycleConflictNodes())
-                 else:
-                    self.models.MakeDoubleCB(name_dcb, self.paramShapes["DCB"], False)
-#                    getattr(self.w_out,'import')(doubleCB)
+          if self.dim == "1D": self.BuildModels_1D()
+          if (self.dim == "2D") or (self.dim == "3D"): self.BuildModels_2D()
+          if self.dim == "3D": self.BuildModels_3D()
 
-             #irr background
-             name_qqzz = "bkg_qqzz"
-             bernsteinShape = {"b0": (self.paramShapes["qqZZ"])["chebPol1"],\
-                               "b1": (self.paramShapes["qqZZ"])["chebPol2"],\
-                               "b2": (self.paramShapes["qqZZ"])["chebPol3"],}
-             qqzz = self.models.MakeBernstein(name_qqzz, bernsteinShape)
-
-             name_ggzz = "bkg_ggzz"
-             bernsteinShape = {"b0": (self.paramShapes["ggZZ"])["chebPol1"],\
-                               "b1": (self.paramShapes["ggZZ"])["chebPol2"],\
-                               "b2": (self.paramShapes["ggZZ"])["chebPol3"],}
-             ggzz = self.models.MakeBernstein(name_ggzz, bernsteinShape)
-
-             #red background
-             zjets = self.models.GetZXShape_4mu_reco()
-
-
-          '''
-          if dim == 2:
-
-             get err*3
-             MakeDoubleDCB(self, name, doubleCBShape, includeErr)
-             MakeLandau * 2
-             MakeBernstein(self, name, bernsteinShape) * 2
-             ZJets
-             GetSignal + GetBackground yields
-
-             qqzz,ggzz,zjets * err
-
-          if dim == 3:
-
-             get err*3
-             get kd*3
-             manipulate kd
-             MakeDoubleDCB(self, name, doubleCBShape, includeErr)
-             MakeLandau * 2
-             MakeBernstein(self, name, bernsteinShape) * 2
-             ZJets
-             GetSignal + GetBackground yields
-
-             qqzz,ggzz,zjets * err
-          '''
-      
 
       def GetBinning(self, filename, templatename, axis="x"):  
 
@@ -212,14 +158,201 @@ class main():
         
           getattr(self.w_out,'import')(data_obs)#, ROOT.RooFit.RecycleConflictNodes())
 
+  
+      def BuildModels_1D(self):
+
+          #signal
+          doubleCB = ROOT.RooDoubleCB()
+          for cat in self.categories:
+              name_dcb = cat+"_hzz"
+              if (cat == "WH" or cat == "ZH"):
+                 #res WH/ZH
+                 self.models.MakeDoubleCB(cat+"_res", self.paramShapes["DCB"], False)
+                 #manipulate name of parameter in shape dictionary
+                 landaushape = {"mean": (self.paramShapes[cat+"_nonRes"])[cat+"p0"],\
+                                "sigma": (self.paramShapes[cat+"_nonRes"])[cat+"p1"]}
+                 #frac
+                 frac = (self.paramShapes[cat+"_nonRes"])[cat+"frac"]
+                 rv_frac = ROOT.RooRealVar(cat+"_frac_"+self.channel,"",float(frac) )
+                 #nonRes WH/ZH
+                 self.models.MakeLandau(cat+"_nonRes", landaushape)
+                 doubleCB = ROOT.RooAddPdf(name_dcb, name_dcb, self.w_out.pdf(cat+"_res"), self.w_out.pdf(cat+"_nonRes"), rv_frac)
+                 getattr(self.w_out,'import')(doubleCB,ROOT.RooFit.RecycleConflictNodes())
+              else:
+                 self.models.MakeDoubleCB(name_dcb, self.paramShapes["DCB"], False)
+
+          #irr background
+          name_qqzz = "bkg_qqzz"
+          bernsteinShape = {"b0": (self.paramShapes["qqZZ"])["chebPol1"],\
+                            "b1": (self.paramShapes["qqZZ"])["chebPol2"],\
+                            "b2": (self.paramShapes["qqZZ"])["chebPol3"],}
+          qqzz = self.models.MakeBernstein(name_qqzz, bernsteinShape)
+
+          name_ggzz = "bkg_ggzz"
+          bernsteinShape = {"b0": (self.paramShapes["ggZZ"])["chebPol1"],\
+                            "b1": (self.paramShapes["ggZZ"])["chebPol2"],\
+                            "b2": (self.paramShapes["ggZZ"])["chebPol3"],}
+          ggzz = self.models.MakeBernstein(name_ggzz, bernsteinShape)
+
+          #red background
+          zjets = self.models.GetZXShape_4mu_reco()
+
+
+      def BuildModels_2D(self):
+
+          #signal
+          doubleCB = ROOT.RooDoubleCB()
+          for cat in self.categories:
+              name_dcb = cat+"_hzz_1D"
+              if (cat == "WH" or cat == "ZH"):
+                 #res WH/ZH
+                 self.models.MakeDoubleCB(cat+"_res", self.paramShapes["DCB"], True)
+                 #manipulate name of parameter in shape dictionary
+                 landaushape = {"mean": (self.paramShapes[cat+"_nonRes"])[cat+"p0"],\
+                                "sigma": (self.paramShapes[cat+"_nonRes"])[cat+"p1"]}
+                 #frac
+                 frac = (self.paramShapes[cat+"_nonRes"])[cat+"frac"]
+                 rv_frac = ROOT.RooRealVar(cat+"_frac_"+self.channel,"",float(frac) )
+                 #nonRes WH/ZH
+                 self.models.MakeLandau(cat+"_nonRes", landaushape)
+                 doubleCB = ROOT.RooAddPdf(name_dcb, name_dcb, self.w_out.pdf(cat+"_res"), self.w_out.pdf(cat+"_nonRes"), rv_frac)
+                 getattr(self.w_out,'import')(doubleCB,ROOT.RooFit.RecycleConflictNodes())
+              else:
+                 self.models.MakeDoubleCB(name_dcb, self.paramShapes["DCB"], True)
+
+          #irreducible background
+          name_qqzz = "bkg_qqzz_1D"
+          bernsteinShape = {"b0": (self.paramShapes["qqZZ"])["chebPol1"],\
+                            "b1": (self.paramShapes["qqZZ"])["chebPol2"],\
+                            "b2": (self.paramShapes["qqZZ"])["chebPol3"],}
+          qqzz = self.models.MakeBernstein(name_qqzz, bernsteinShape)
+
+          name_ggzz = "bkg_ggzz_1D"
+          bernsteinShape = {"b0": (self.paramShapes["ggZZ"])["chebPol1"],\
+                            "b1": (self.paramShapes["ggZZ"])["chebPol2"],\
+                            "b2": (self.paramShapes["ggZZ"])["chebPol3"],}
+          ggzz = self.models.MakeBernstein(name_ggzz, bernsteinShape)
+
+          #reducible background
+          zjets = self.models.GetZXShape_4mu_reco()
+          ## treatmeant of zjets m4l shape can be improved
+          self.w_out.pdf("bkg_zjets").SetName("bkg_zjets_1D")
+
+          ## build 2D (m4l, m4lErr/m4l) model
+          for cat in self.categories:
+              self.models.MakeConditionalProd(cat+"_hzz", self.w_out.pdf("pdfErr_s"), self.w_out.pdf(cat+"_hzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_qqzz", self.w_out.pdf("pdfErr_qqzz"), self.w_out.pdf("bkg_qqzz_1D"), self.CMS_zz4l_mass) 
+          self.models.MakeConditionalProd("bkg_ggzz", self.w_out.pdf("pdfErr_ggzz"), self.w_out.pdf("bkg_ggzz_1D"), self.CMS_zz4l_mass)
+          self.models.MakeConditionalProd("bkg_zjets", self.w_out.pdf("pdfErr_zjets"), self.w_out.pdf("bkg_zjets_1D"), self.CMS_zz4l_mass)
+
+
+      def BuildModels_3D(self):
+
+          #assume 2D(m4l, m4lErr/m4l) model is already made
+          ## signal
+          for cat in self.categories:
+              self.w_out.pdf(cat+"_hzz").SetName(cat+"_hzz_2D")
+              sigTemplateMorphPdf = ROOT.FastVerticalInterpHistPdf2D("sigTemplateMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                     True, ROOT.RooArgList(self.w_out.pdf("sigTemplatePdf")), ROOT.RooArgList(),1.0,1)
+
+              sigCB3d = ROOT.RooProdPdf(cat+"_hzz","", ROOT.RooArgSet(self.w_out.pdf(cat+"_hzz_2D")),\
+                                        ROOT.RooFit.Conditional(ROOT.RooArgSet(sigTemplateMorphPdf),ROOT.RooArgSet(self.MELA_KD) ) )
+
+              getattr(self.w_out,'import')(sigCB3d,ROOT.RooFit.RecycleConflictNodes())
+
+          ## qqzz and ggzz
+          for cat in ["qqzz","ggzz"]:
+              self.w_out.pdf("bkg_"+cat).SetName("bkg_"+cat+"_2D")
+              bkgTemplateMorphPdf_zz = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                        True,ROOT.RooArgList(self.w_out.pdf("bkgTemplatePdf_"+cat)),ROOT.RooArgList(),1.0,1)
+
+              bkg3d_zz = ROOT.RooProdPdf("bkg2d_"+cat,"",ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
+                                         ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zz),ROOT.RooArgSet(self.MELA_KD) ) )
+
+              getattr(self.w_out,'import')(bkg3d_zz,ROOT.RooFit.RecycleConflictNodes())
+
+          ## zjets
+          self.w_out.pdf("bkg_zjets").SetName("bkg_zjets_2D")
+
+          alphaMorphBkg = ROOT.RooRealVar("CMS_zz4l_bkgMELA","",0,-20,20)
+          alphaMorphBkg.setConstant(False)
+          morphVarListBkg = ROOT.RooArgList()
+          morphVarListBkg.add(alphaMorphBkg)
+
+          funcList_zjets = ROOT.RooArgList()
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX"))
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_up"))
+          funcList_zjets.add(self.w_out.pdf("bkgTemplatePdf_ZX_dn"))
+
+          bkgTemplateMorphPdf_zjets = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_ZX","",self.CMS_zz4l_mass,self.MELA_KD,\
+                                                                       True,funcList_zjets,morphVarListBkg,1.0,1)
+
+          bkg3d_zjets = ROOT.RooProdPdf("bkg2d_zjets","",ROOT.RooArgSet(self.w_out.pdf("bkg_zjets_2D")),\
+                                        ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zjets),ROOT.RooArgSet(self.MELA_KD) ) )
+
+          getattr(self.w_out,'import')(bkg3d_zjets,ROOT.RooFit.RecycleConflictNodes())
+ 
+
+      def PrepareShapesToBuildModel(self):
+
+          ## 1D model parameters
+          self.paramShapes = \
+          {\
+          "DCB": self.PickShapePerChannel(shapes.DCB_parametrization.shape),\
+          "WH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_WH.shape),\
+          "ZH_nonRes": self.PickShapePerChannel(shapes.signal_shape_parametrization_13TeV_ZH.shape),\
+          "qqZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_qqZZ.shape),\
+          "ggZZ": self.PickShapePerChannel(shapes.bkg_shape_parametriztion_13TeV_ggZZ.shape) \
+           }
+
+          ## m4lErr/m4l template for 2D(m4l, m4lErr/m4l) model building
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_signal_4mu.root", "h_Dm", "pdfErr_s", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_qqZZ_4mu.root", "h_Dm", "pdfErr_qqzz", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dm_ggZZ_4mu.root", "h_Dm", "pdfErr_ggzz", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/pdfErrZX_4mu.root", "pdfErrZX_4mu", "pdfErr_zjets", \
+                                        ROOT.RooArgList(self.CMS_zz4l_massErr), ROOT.RooArgSet(self.CMS_zz4l_massErr))\
+
+          ## KD template for 3D(m4l, m4l/m4lErr, KD) model building 
+          self.models.HistTemplateToPdf("shapes/templates2D/Dsignal_4mu.root", "h_mzzD", "sigTemplatePdf",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_qqZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_qqzz",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ggZZ_4mu.root", "h_mzzD", "bkgTemplatePdf_ggzz",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD", "bkgTemplatePdf_ZX",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_up", "bkgTemplatePdf_ZX_up",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+          self.models.HistTemplateToPdf("shapes/templates2D/Dbackground_ZX_4mu.root", "h_mzzD_dn", "bkgTemplatePdf_ZX_dn",\
+                                        ROOT.RooArgList(self.CMS_zz4l_mass, self.MELA_KD),\
+                                        ROOT.RooArgSet(self.CMS_zz4l_mass, self.MELA_KD)),\
+
+
+
+      def MakeSlimWorkspace(self):
+          print "put only useful var/pdf/rooformulavar/dataset in workspace"
+
 test = main()
 
 test.BuildWorkspace()
-test.LoadYields()
-test.LoadData()
+test.w_out.var("CMS_zz4l_mass").setVal(138.032)
+test.w_out.var("CMS_zz4l_massErr").setVal(0.0101069)
+test.w_out.var("CMS_zz4l_mass").setBins(18)
+test.w_out.var("MELA_KD").setVal(0.512508)
 test.w_out.Print()
-#test.w_out.var("CMS_zz4l_mass").setVal(138.032)
-test.w_out.var("CMS_zz4l_mass").Print()
 test.w_out.writeToFile("hzz4l_4muS_13TeV.input.root")
 
 test.BuildDatacard()
+
+
+
+print "1Debe model: after do text2workspace, bkg_qqzz_1D value changes ?? "
+print "in datacard: bkg_qqzz vs bkg2d_qqzz gives different result ?? "
