@@ -266,7 +266,7 @@ class main():
               bkgTemplateMorphPdf_zz = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_"+cat,"",self.CMS_zz4l_mass,self.MELA_KD,\
                                                                         True,ROOT.RooArgList(self.w_out.pdf("bkgTemplatePdf_"+cat)),ROOT.RooArgList(),1.0,1)
 
-              bkg3d_zz = ROOT.RooProdPdf("bkg_"+cat,"",ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
+              bkg3d_zz = ROOT.RooProdPdf("bkg2d_"+cat,"",ROOT.RooArgSet(self.w_out.pdf("bkg_"+cat+"_2D")),\
                                          ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zz),ROOT.RooArgSet(self.MELA_KD) ) )
 
               getattr(self.w_out,'import')(bkg3d_zz,ROOT.RooFit.RecycleConflictNodes())
@@ -287,7 +287,7 @@ class main():
           bkgTemplateMorphPdf_zjets = ROOT.FastVerticalInterpHistPdf2D("bkgTemplatMorphPdf_ZX","",self.CMS_zz4l_mass,self.MELA_KD,\
                                                                        True,funcList_zjets,morphVarListBkg,1.0,1)
 
-          bkg3d_zjets = ROOT.RooProdPdf("bkg_zjets","",ROOT.RooArgSet(self.w_out.pdf("bkg_zjets_2D")),\
+          bkg3d_zjets = ROOT.RooProdPdf("bkg2d_zjets","",ROOT.RooArgSet(self.w_out.pdf("bkg_zjets_2D")),\
                                         ROOT.RooFit.Conditional(ROOT.RooArgSet(bkgTemplateMorphPdf_zjets),ROOT.RooArgSet(self.MELA_KD) ) )
 
           getattr(self.w_out,'import')(bkg3d_zjets,ROOT.RooFit.RecycleConflictNodes())
@@ -346,6 +346,7 @@ test.BuildWorkspace()
 test.w_out.var("CMS_zz4l_mass").setVal(138.032)
 test.w_out.var("CMS_zz4l_massErr").setVal(0.0101069)
 test.w_out.var("CMS_zz4l_mass").setBins(18)
+test.w_out.var("MELA_KD").setVal(0.512508)
 test.w_out.Print()
 test.w_out.writeToFile("hzz4l_4muS_13TeV.input.root")
 
@@ -354,3 +355,4 @@ test.BuildDatacard()
 
 
 print "1Debe model: after do text2workspace, bkg_qqzz_1D value changes ?? "
+print "in datacard: bkg_qqzz vs bkg2d_qqzz gives different result ?? "

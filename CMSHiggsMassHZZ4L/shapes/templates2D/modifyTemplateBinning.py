@@ -1,5 +1,6 @@
 from ROOT import *
 from array import array
+from subprocess import call
 
 def histogramBinFix(hist,histname):
 
@@ -27,13 +28,34 @@ def histogramBinFix(hist,histname):
                   currentbin = hist_fix.FindBin(hist_fix.GetXaxis().GetBinCenter(nxbin),hist_fix.GetYaxis().GetBinCenter(nybin))
                   hist_fix.SetBinContent(currentbin,binval)
 
+#          hist_fix.Scale(1/hist_fix.Integral())
           return hist_fix
 
-f1 = TFile("Dsignal_4mu.root")
-hist = f1.Get("h_mzzD")
-hist_new = histogramBinFix(hist, "h_mzzD")
+name = "Dbackground_ZX_4mu"
 
-f2 = TFile("Dsignal_4mu_new.root","RECREATE")
+f1 = TFile(name + ".root")
+hist = f1.Get("h_mzzD")
+hist_new = histogramBinFix(hist, "h_mzzD_1")
+del hist
+hist_new.SetName("h_mzzD")
+
+hist = f1.Get("h_mzzD_up")
+hist_new_up = histogramBinFix(hist, "h_mzzD_1")
+del hist
+hist_new_up.SetName("h_mzzD_up")
+
+hist = f1.Get("h_mzzD_dn")
+hist_new_dn = histogramBinFix(hist, "h_mzzD_1")
+del hist
+hist_new_dn.SetName("h_mzzD_dn")
+
+
+f2 = TFile(name + "_new.root","RECREATE")
 f2.cd()
 hist_new.Write()
+hist_new_up.Write()
+hist_new_dn.Write()
+
 f2.Close()
+
+call("mv "+name+"_new.root " + name + ".root",shell=True)
