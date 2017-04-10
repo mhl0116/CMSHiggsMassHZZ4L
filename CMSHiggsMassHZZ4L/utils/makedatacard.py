@@ -48,6 +48,7 @@ class Makedatacard():
           self.txtfile.write("process " + " ".join(processList) + "\n")
           self.txtfile.write("process ")
           self.txtfile.write(" ".join([str(i-nSig+1) for i in range(nSig)]) )
+          self.txtfile.write(" ")
           self.txtfile.write(" ".join([str(i+1) for i in range(nBkg)]) + "\n")
           self.txtfile.write("rate " + " ".join(rates) + "\n")
           self.txtfile.write("------------\n")

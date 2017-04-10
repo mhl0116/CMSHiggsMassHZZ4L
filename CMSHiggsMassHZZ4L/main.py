@@ -13,8 +13,15 @@ import yields.signalYields_4mu
 import yields.signalYields_4e
 import yields.signalYields_2e2mu
 
+import systematics.systematics
+import systematics.systematicsLnN
+import systematics.systematicsParam
+
 import sys
 ROOT.gSystem.Load("libHiggsAnalysisCombinedLimit.so")
+
+ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.DataHandling)
+ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.ObjectHandling)
 
 class main():
 
@@ -24,7 +31,7 @@ class main():
           self.datatreename = "data_obs"
 
           self.channel = "1"
-          self.dim = "3D"
+          self.dim = "2D"
 
           self.mH = 125
           self.MH = ROOT.RooRealVar("MH","MH",self.mH)
@@ -80,10 +87,18 @@ class main():
 
           self.datacard = utils.makedatacard.Makedatacard(datacardInputs)
 
+          systematicInputs = {\
+                             "txtfile": datacardfile, \
+                             "sysDict_lnN": (systematics.systematicsLnN.sysLnN)[self.channel],\
+                             "sysDict_param": (systematics.systematicsParam.sysParam)[self.channel] 
+                             }
+
+          self.systematics = systematics.systematics.Systematics(systematicInputs)
+
       def BuildDatacard(self):
 
           self.datacard.WriteDatacard() 
-
+          self.systematics.WriteSystematics()
 
       def BuildWorkspace(self):
 
